@@ -1,0 +1,1 @@
+config = {'DATA_DIR': '..\data\Data.xlsx'}
