@@ -7,6 +7,8 @@ import sys
 sys.path.append('..')
 from config import config
 
+import time
+
 import pprint
 import numpy as np
 import pandas as pd
@@ -114,55 +116,104 @@ print(vif)
 X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size)
 print(X_test.shape)
 
+# SCORES AND MODEL NAME LISTS
+scores = []
+model_names = []
+model_runtimes = []
+
 ##### SIMPLE ORDINARY LEAST SQUARE (OLS) REGRESSION MODEL 
 ##### (NB: OLS REGRESSION DOES NOT PROVIDE BINARY PREDICTION OUTPUT, SO 
 ##### IF PREDICTION IS GREATER THAN .5 IT IS ENCODED AS 1, OTHERWISE 0)
+tic = time.time()    
+
 ols_model = sm.OLS(y_train, sm.add_constant(X_train))
 ols_result = ols_model.fit()
 print(ols_result.summary())
 y_pred_ols = (ols_result.predict(sm.add_constant(X_test)) > 0.5).astype(int)
-print(f'for OLS regression model accuracy is {accuracy_score(y_test, y_pred_ols)*100} percent')
+
+toc = time.time() 
+
+print(f'for OLS regression model accuracy is {accuracy_score(y_test, y_pred_ols)*100} percent')   
+scores.append(accuracy_score(y_test, y_pred_ols)*100)
+model_names.append('Ordinary Least Squares Regression')
+model_runtimes.append(toc-tic)
 
 ##### LOGISTIC REGRESSION
+tic = time.time()    
+
 lr_model = LogisticRegression(max_iter=1000)
 lr_model.fit(X=X_train.values, y=y_train.values)
+
+toc = time.time()
+
 print(f'for OLS regression model accuracy is {accuracy_score(y_test, lr_model.predict(X_test))*100} percent')
+scores.append(accuracy_score(y_test, lr_model.predict(X_test))*100)
+model_names.append('Logistic Regression')
+model_runtimes.append(toc-tic)
 
 ##### DEFAULT (UNTUNED) DECISION TREE MODEL
+tic = time.time()    
+
 dt_model = DecisionTreeClassifier()
 dt_model.fit(X=X_train.values, y=y_train.values)
-accuracy_score(y_test, dt_model.predict(X_test))
-fi_plot(X_test, dt_model, 'Decision Tree model')
+
+toc = time.time()
+
+print(f'for Default Decision Tree model accuracy is {accuracy_score(y_test, dt_model.predict(X_test))*100} percent')
+fi_plot(X_test, dt_model, 'Decision Tree model', save=True, plot_name='default_dt_fi')
+scores.append(accuracy_score(y_test, dt_model.predict(X_test))*100)
+model_names.append('Default Decision Tree Classifier')
+model_runtimes.append(toc-tic)
 
 ##### DEFAULT RANDOM FOREST MODEL
 rf_params = dict(n_jobs=n_jobs, 
                 random_state=42)
+
+tic = time.time()    
 rf_model = RandomForestClassifier(**rf_params)
 rf_model.fit(X=X_train.values, y=y_train.values)
-accuracy_score(y_test, rf_model.predict(X_test))
+
+toc = time.time()
+
 print(f'for Random Forest model accuracy is {accuracy_score(y_test, rf_model.predict(X_test))*100} percent')
-fi_plot(X_test, rf_model, 'Random Forest model')
+fi_plot(X_test, rf_model, 'Random Forest model', save=True, plot_name='default_rf_fi')
+scores.append(accuracy_score(y_test, rf_model.predict(X_test))*100)
+model_names.append('Default Random Forest Classifier')
+model_runtimes.append(toc-tic)
 
 ##### DEFAULT XGBOOST MODEL
 xgboost_params = dict(objective='binary:logistic',
                         seed=42,
                         n_jobs=n_jobs)
+tic = time.time()                 
 
 xgboost_model = XGBClassifier(**xgboost_params)
 xgboost_model.fit(X=X_train.values, y=y_train.values)
-accuracy_score(y_test, xgboost_model.predict(X_test))
+
+toc = time.time()  
+
 print(f'for XGBoost model accuracy is {accuracy_score(y_test, xgboost_model.predict(X_test))*100} percent')
-fi_plot(X_test, xgboost_model, 'XGBoost model')
+fi_plot(X_test, xgboost_model, 'XGBoost model', save=True, plot_name='default_xgboost_fi')
+scores.append(accuracy_score(y_test, xgboost_model.predict(X_test))*100)
+model_names.append('Default XGBoost Classifier')
+model_runtimes.append(toc-tic)
 
 ##### DEFAULT LGBM MODEL
 lgbm_params = dict(verbosity=-1,
                     nthread=-1, 
                     random_state=42)
 
+tic = time.time()  
 lgbm_model = LGBMClassifier(**lgbm_params)
 lgbm_model.fit(X=X_train.values, y=y_train.values)
+
+toc = time.time() 
+
 print(f'for LightGBM model accuracy is {accuracy_score(y_test, lgbm_model.predict(X_test))*100} percent')
 fi_plot(X_test, lgbm_model, 'LightGBM model', save=True, plot_name='default_lgbm_fi')
+scores.append(accuracy_score(y_test, lgbm_model.predict(X_test))*100)
+model_names.append('Default Light GBM Classifier')
+model_runtimes.append(toc-tic)
 
 ##### GRID SEARCH TUNED DECISION TREE MODEL
 grid_param_dt = {'criterion': ['gini', 'entropy'],
@@ -172,13 +223,24 @@ grid_param_dt = {'criterion': ['gini', 'entropy'],
             'min_samples_split': [.1, .2, .5]
             }
 
+tic = time.time()
+
 grid_dt = GridSearchCV(dt_model, param_grid=grid_param_dt, cv=5, n_jobs=-1, scoring='accuracy')
 grid_dt.fit(X_train, y_train)
 best_dt = grid_dt.best_estimator_
+
+toc = time.time()
+
 print(f'for Tuned Decision Tree model accuracy is {accuracy_score(y_test, best_dt.predict(X_test))*100} percent')
-fi_plot(X_test, best_dt, 'Tuned Decision Tree model')
+fi_plot(X_test, best_dt, 'Tuned Decision Tree model', save=True, plot_name='tuned_dt_fi')
+
+scores.append(accuracy_score(y_test, best_dt.predict(X_test))*100)
+model_names.append('Tuned Decision Tree Classifier')
+model_runtimes.append(toc-tic)
+print(f'Tuned Decision Tree Classifier took {toc - tic} seconds to train')
 
 ##### GRID SEARCH TUNED RANDOM FOREST
+
 grid_param_rf = {'n_estimators': [5, 10, 20, 50, 100],
             'max_depth': [1, 5, 10, 30, 50],
             'max_features': ['auto', 'sqrt'],
@@ -186,12 +248,21 @@ grid_param_rf = {'n_estimators': [5, 10, 20, 50, 100],
             'min_samples_split': [x for x in np.linspace(0.0001, 1, num=4)],
             'bootstrap': [True, False]}
 
+tic = time.time()
+
 grid_rf = GridSearchCV(rf_model, param_grid=grid_param_rf, cv=5, n_jobs=-1, scoring='accuracy')
 grid_rf.fit(X_train, y_train)
 best_rf = grid_rf.best_estimator_
 
-print(f'for Tuned Decision Tree model accuracy is {accuracy_score(y_test, best_dt.predict(X_test))*100} percent')
-fi_plot(X_test, best_dt, 'Tuned Decision Tree model')
+toc = time.time()
+
+print(f'for Tuned Random Forest model accuracy is {accuracy_score(y_test, best_rf.predict(X_test))*100} percent')
+fi_plot(X_test, best_rf, 'Tuned Random Forest model', save=True, plot_name='tuned_rf_fi')
+
+scores.append(accuracy_score(y_test, best_rf.predict(X_test))*100)
+model_names.append('Tuned Random Forest Classifier')
+model_runtimes.append(toc-tic)
+print(f'Tuned Random Forest Classifier took {toc - tic} seconds to train')
 
 ##### BAYESIAN OPTIMIZATION TUNING OF LGBM CLASSIFIER'S HYPERPARAMETERS
 ### PARAMETER SEARCH DIMENSIONS
@@ -209,6 +280,8 @@ def lgbm_objective(params):
 
 bo_lgbm_model = LGBMClassifier(random_state=42, verbosity=-1)
 
+tic = time.time()
+
 trials = Trials()
 model_params = bo_lgbm_model.get_params()
 bo_lgbm_best = fmin(fn=lgbm_objective, space=bo_lgbm_space, algo=tpe.suggest, max_evals=20, trials=trials)
@@ -217,6 +290,18 @@ model_params.update(space_eval(bo_lgbm_space, bo_lgbm_best))
 
 bo_lgbm_best_model = LGBMClassifier(**model_params)
 bo_lgbm_best_model.fit(X=X_train.values, y=y_train.values)
-print(f'for BO Tuned LightGBM model accuracy is {accuracy_score(y_test, bo_lgbm_best_model.predict(X_test))*100} percent')
+
+toc = time.time()
+
+print(f'for BO Tuned LightGBM Classifier accuracy is {accuracy_score(y_test, bo_lgbm_best_model.predict(X_test))*100} percent')
 fi_plot(X_test, bo_lgbm_best_model, 'BO Tuned LightGBM model', save=True, plot_name='bo_tuned_lgbm_fi')
+print(f'BO Tuned LightGBM Classifier took {toc - tic} seconds to train')
+
+scores.append(accuracy_score(y_test, bo_lgbm_best_model.predict(X_test))*100)
+model_names.append('Tuned Light GBM Classifier')
+model_runtimes.append(toc-tic)
+
+score_dict = dict(models=model_names, accuracy_scores=scores, runtime_on_24Gb_RAM_seconds=model_runtimes)
+score_dt = pd.DataFrame(score_dict)
+score_dt.to_csv(OUTPUT_DIR+'model_scores.csv')
 
